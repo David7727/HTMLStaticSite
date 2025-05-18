@@ -1,3 +1,4 @@
+from textnode import TextNode, TextType, split_nodes_image, split_nodes_link
 import unittest
 
 from htmlnode import HTMLNode, LeafNode
@@ -87,3 +88,66 @@ class TestHTMLNode(unittest.TestCase):
         node = TextNode("Some text", "not_a_valid_type")
         with self.assertRaises(Exception):
             text_node_to_html_node(node)
+
+class TestSplitNodes(unittest.TestCase):
+    def test_split_links(self):
+        node = TextNode(
+            "Click [Google](https://google.com) or [Bing](https://bing.com)",
+            TextType.TEXT,
+        )
+        result = split_nodes_link([node])
+        self.assertListEqual(result, [
+            TextNode("Click ", TextType.TEXT),
+            TextNode("Google", TextType.LINK, "https://google.com"),
+            TextNode(" or ", TextType.TEXT),
+            TextNode("Bing", TextType.LINK, "https://bing.com")
+        ])
+
+    def test_split_images(self):
+        node = TextNode(
+            "This is text with an ![image](https://i.imgur.com/zjjcJKZ.png) and another ![second image](https://i.imgur.com/3elNhQu.png)",
+            TextType.TEXT,
+        )
+        result = split_nodes_image([node])
+        self.assertListEqual(result, [
+            TextNode("This is text with an ", TextType.TEXT),
+            TextNode("image", TextType.IMAGE, "https://i.imgur.com/zjjcJKZ.png", "image"),
+            TextNode(" and another ", TextType.TEXT),
+            TextNode("second image", TextType.IMAGE, "https://i.imgur.com/3elNhQu.png", "second image")
+        ])
+
+
+    def test_mixed_link_image(self):
+        node = TextNode(
+            "See ![pic](https://img.com/a.png) and visit [site](https://example.com)",
+            TextType.TEXT,
+        )
+        after_images = split_nodes_image([node])
+        final_nodes = split_nodes_link(after_images)
+        self.assertListEqual(final_nodes, [
+            TextNode("See ", TextType.TEXT),
+            TextNode("pic", TextType.IMAGE, "https://img.com/a.png", "pic"),
+            TextNode(" and visit ", TextType.TEXT),
+            TextNode("site", TextType.LINK, "https://example.com")
+        ])
+
+
+    def test_no_match(self):
+        node = TextNode("No links or images here.", TextType.TEXT)
+        self.assertListEqual(split_nodes_link([node]), [node])
+        self.assertListEqual(split_nodes_image([node]), [node])
+
+    def test_multiple_nodes(self):
+        nodes = [
+            TextNode("First [link](https://a.com)", TextType.TEXT),
+            TextNode("Second ![img](https://img.com/b.png)", TextType.TEXT),
+        ]
+        step1 = split_nodes_image(nodes)
+        step2 = split_nodes_link(step1)
+        self.assertListEqual(step2, [
+            TextNode("First ", TextType.TEXT),
+            TextNode("link", TextType.LINK, "https://a.com"),
+            TextNode("Second ", TextType.TEXT),
+            TextNode("img", TextType.IMAGE, "https://img.com/b.png", "img")
+
+        ])

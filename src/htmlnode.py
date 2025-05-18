@@ -1,4 +1,6 @@
 from enum import Enum
+from dataclasses import dataclass
+import re
 
 class TextType(Enum):
     TEXT = "text"
@@ -77,26 +79,67 @@ def test_text(self):
     self.assertEqual(html_node.tag, None)
     self.assertEqual(html_node.value, "This is a text node")
 
-def text_node_to_html_node(text_node):
-    text_type = text_node.text_type
+def split_nodes_link(old_nodes):
+    link_pattern = re.compile(r'\[([^\]]+)\]\((https?://[^\)]+)\)')
+    new_nodes = []
 
-    if text_type == TextType.TEXT:
-        return LeafNode(tag=None, value=text_node.text)
-    elif text_type == TextType.BOLD:
-        return LeafNode(tag="b", value=text_node.text)
-    elif text_type == TextType.ITALIC:
-        return LeafNode(tag="i", value=text_node.text)
-    elif text_type == TextType.CODE:
-        return LeafNode(tag="code", value=text_node.text)
-    elif text_type == TextType.LINK:
-        props = {"href": text_node.url} if text_node.url else {}
-        return LeafNode(tag="a", value=text_node.text, props=props)
-    elif text_type == TextType.IMAGE:
-        props = {}
-        if text_node.url:
-            props["src"] = text_node.url
-        if text_node.alt:
-            props["alt"] = text_node.alt
-        return LeafNode(tag="img", value="", props=props)
-    else:
-        raise ValueError(f"Unsupported TextType: {text_type}")
+    for node in old_nodes:
+        if node.text_type != TextType.TEXT:
+            new_nodes.append(node)
+            continue
+
+        text = node.text
+        while True:
+            match = link_pattern.search(text)
+            if not match:
+                if text:
+                    new_nodes.append(TextNode(text, TextType.TEXT))
+                break
+
+            # Add text before the link
+            before = text[:match.start()]
+            if before:
+                new_nodes.append(TextNode(before, TextType.TEXT))
+
+            # Add the link node
+            link_text = match.group(1)
+            url = match.group(2)
+            new_nodes.append(TextNode(link_text, TextType.LINK, url))
+
+            # Update text to remaining part
+            text = text[match.end():]
+
+    return new_nodes
+
+
+def split_nodes_image(old_nodes):
+    image_pattern = re.compile(r'!\[([^\]]+)\]\((https?://[^\)]+)\)')
+    new_nodes = []
+
+    for node in old_nodes:
+        if node.text_type != TextType.TEXT:
+            new_nodes.append(node)
+            continue
+
+        text = node.text
+        while True:
+            match = image_pattern.search(text)
+            if not match:
+                if text:
+                    new_nodes.append(TextNode(text, TextType.TEXT))
+                break
+
+            # Add text before the image
+            before = text[:match.start()]
+            if before:
+                new_nodes.append(TextNode(before, TextType.TEXT))
+
+            # Add the image node
+            alt_text = match.group(1)
+            url = match.group(2)
+            new_nodes.append(TextNode(alt_text, TextType.IMAGE, url))
+
+            # Update the text to the remaining part after the match
+            text = text[match.end():]
+
+    return new_nodes
