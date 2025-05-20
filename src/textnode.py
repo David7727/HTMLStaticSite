@@ -1,5 +1,8 @@
 import re
-from enum import Enum
+from enum import Enum, auto
+from block_type import BlockType
+from htmlnode import HTMLNode, LeafNode, ParentNode
+
 
 class TextType(Enum):
     TEXT = "text"
@@ -214,3 +217,106 @@ This is the same paragraph on a new line
 # Run the test
 if __name__ == "__main__":
     unittest.main()
+
+def block_to_block_type(block):
+    lines = block.splitlines()
+
+    if not lines:
+        return BlockType.PARAGRAPH
+
+    # Code block: starts and ends with ```
+    if block.startswith("```") and block.endswith("```"):
+        return BlockType.CODE
+
+    # Heading: starts with 1–6 # characters followed by a space
+    if re.match(r"^#{1,6} ", lines[0]):
+        return BlockType.HEADING
+
+    # Quote: every line starts with > (optionally followed by space)
+    if all(re.match(r"^>\s?.*", line) and line.strip() for line in lines):
+        return BlockType.QUOTE
+
+    # Unordered list: every line starts with "- " and no blank lines
+    if all(re.match(r"^- ", line) and line.strip() for line in lines):
+        return BlockType.UNORDERED_LIST
+
+    # Ordered list: lines must start with 1. 2. 3. ... sequentially
+    for i, line in enumerate(lines, start=1):
+        if not re.match(rf"^{i}\. ", line) or not line.strip():
+            break
+    else:
+        return BlockType.ORDERED_LIST
+
+    # Fallback: it's a paragraph
+    return BlockType.PARAGRAPH
+
+def text_to_children(text):
+    text_nodes = text_to_textnodes(text)
+    return [text_node_to_html_node(node) for node in text_nodes]
+
+
+def code_block_to_node(block):
+    return ParentNode(
+        "pre",
+        [LeafNode("code", block.strip())]
+    )
+
+
+def heading_block_to_node(block):
+    # Count the number of # at the beginning
+    heading_level = len(block) - len(block.lstrip('#'))
+    content = block[heading_level:].strip()
+    return ParentNode(f"h{heading_level}", text_to_children(content))
+
+
+def paragraph_block_to_node(block):
+    return ParentNode("p", text_to_children(block))
+
+
+def quote_block_to_node(block):
+    # Remove leading "> " or ">"
+    lines = [line.lstrip("> ").strip() for line in block.splitlines()]
+    content = " ".join(lines)
+    return ParentNode("blockquote", text_to_children(content))
+
+
+def unordered_list_block_to_node(block):
+    lines = [line.lstrip("-*+ ").strip() for line in block.splitlines()]
+    children = [ParentNode("li", text_to_children(line)) for line in lines]
+    return ParentNode("ul", children)
+
+
+def ordered_list_block_to_node(block):
+    lines = [line.split(".", 1)[1].strip() for line in block.splitlines()]
+    children = [ParentNode("li", text_to_children(line)) for line in lines]
+    return ParentNode("ol", children)
+
+
+def block_to_html_node(block):
+    block_type = block_to_block_type(block)
+
+    if block_type == BlockType.CODE:
+        return code_block_to_node(block)
+    elif block_type == BlockType.HEADING:
+        return heading_block_to_node(block)
+    elif block_type == BlockType.QUOTE:
+        return quote_block_to_node(block)
+    elif block_type == BlockType.UNORDERED_LIST:
+        return unordered_list_block_to_node(block)
+    elif block_type == BlockType.ORDERED_LIST:
+        return ordered_list_block_to_node(block)
+    elif block_type == BlockType.PARAGRAPH:
+        return paragraph_block_to_node(block)
+    else:
+        raise ValueError(f"Unsupported block type: {block_type}")
+
+
+def markdown_to_html_node(markdown):
+    blocks = markdown_to_blocks(markdown)
+    children = [block_to_html_node(block) for block in blocks]
+    return ParentNode("div", children)
+
+def markdown_to_blocks(markdown):
+    markdown = markdown.replace("\r\n", "\n")
+    blocks = re.split(r'\n\s*\n', markdown)
+    return [block.strip() for block in blocks if block.strip()]

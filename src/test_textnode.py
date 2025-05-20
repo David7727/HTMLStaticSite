@@ -1,6 +1,10 @@
 import unittest
 import re
-from enum import Enum
+from enum import Enum, auto
+from block_type import BlockType
+from textnode import block_to_block_type  # replace your_module with where that function is
+from markdown_to_html import markdown_to_html_node
+
 
 # --- ENUM + CLASS ---
 
@@ -11,6 +15,7 @@ class TextType(Enum):
     CODE = "code"
     LINK = "link"
     IMAGE = "image"
+
 
 class TextNode:
     def __init__(self, text, text_type, url=None, alt=None):
@@ -230,6 +235,69 @@ This is the same paragraph on a new line
         blocks = markdown_to_blocks(md)
         self.assertEqual(blocks, ["Text", "More text"])
 
-# Run the test
+class TestBlockTypeDetection(unittest.TestCase):
+
+    def test_heading(self):
+        self.assertEqual(block_to_block_type("# Heading"), BlockType.HEADING)
+        self.assertEqual(block_to_block_type("###### Heading"), BlockType.HEADING)
+
+    def test_code(self):
+        self.assertEqual(block_to_block_type("```\ncode\n```"), BlockType.CODE)
+        self.assertEqual(block_to_block_type("```\nline1\nline2\n```"), BlockType.CODE)
+
+    def test_quote_valid(self):
+        self.assertEqual(block_to_block_type("> Quote line\n> Another quote"), BlockType.QUOTE)
+        self.assertEqual(block_to_block_type(">Quote\n>Still quoted"), BlockType.QUOTE)
+
+    def test_quote_with_empty_or_whitespace_line(self):
+        self.assertEqual(block_to_block_type("> Quote line\n   \n> Another quote"), BlockType.PARAGRAPH)
+
+    def test_unordered_list(self):
+        self.assertEqual(block_to_block_type("- Item 1\n- Item 2"), BlockType.UNORDERED_LIST)
+
+    def test_unordered_list_with_empty_line(self):
+        self.assertEqual(block_to_block_type("- Item 1\n\n- Item 2"), BlockType.PARAGRAPH)
+        self.assertEqual(block_to_block_type("- Item 1\n   \n- Item 2"), BlockType.PARAGRAPH)
+
+    def test_ordered_list_valid(self):
+        self.assertEqual(block_to_block_type("1. First\n2. Second\n3. Third"), BlockType.ORDERED_LIST)
+
+    def test_ordered_list_wrong_sequence(self):
+        self.assertEqual(block_to_block_type("1. First\n3. Third"), BlockType.PARAGRAPH)
+
+    def test_ordered_list_starts_at_2(self):
+        self.assertEqual(block_to_block_type("2. First\n3. Second"), BlockType.PARAGRAPH)
+
+    def test_ordered_list_with_empty_line(self):
+        self.assertEqual(block_to_block_type("1. First\n\n2. Second"), BlockType.PARAGRAPH)
+        self.assertEqual(block_to_block_type("1. First\n   \n2. Second"), BlockType.PARAGRAPH)
+
+    def test_paragraph(self):
+        self.assertEqual(block_to_block_type("Just a regular paragraph."), BlockType.PARAGRAPH)
+
+class TestMarkdownToHTML(unittest.TestCase):
+
+    def test_paragraphs(self):
+        md = """
+This is **bolded** paragraph
+text in a p
+tag here
+
+This is another paragraph with _italic_ text and `code` here
+
+"""
+        node = markdown_to_html_node(md)
+        html = node.to_html()
+        self.assertEqual(
+            html,
+            "<div><p>This is <b>bolded</b> paragraph text in a p tag here</p><p>This is another paragraph with <i>italic</i> text and <code>code</code> here</p></div>",
+        )
+
+    def test_codeblock(self):
+        md = """
+        This is text that _should_ remain
+        the **same** even with inline stuff
+        """
+
 if __name__ == "__main__":
     unittest.main()
