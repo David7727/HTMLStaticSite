@@ -151,3 +151,35 @@ class TestSplitNodes(unittest.TestCase):
             TextNode("img", TextType.IMAGE, "https://img.com/b.png", "img")
 
         ])
+        import unittest
+
+        class TestExtractTitle(unittest.TestCase):
+
+            def test_valid_titles(self):
+                self.assertEqual(extract_title("# Tolkien Fan Club"), "Tolkien Fan Club")
+                self.assertEqual(extract_title("#   Tolkien Fan Club   "), "Tolkien Fan Club")
+                self.assertEqual(extract_title("# 12345 My Title"), "12345 My Title")
+
+            def test_invalid_headers(self):
+                with self.assertRaises(Exception):
+                    extract_title("# ")
+
+                with self.assertRaises(Exception):
+                    extract_title("## Not a main title")
+
+                with self.assertRaises(Exception):
+                    extract_title("### This should not match")
+
+            def test_edge_cases(self):
+                # Empty markdown or no valid header
+                with self.assertRaises(Exception):
+                    extract_title("")
+
+                # Test for title with special characters
+                self.assertEqual(extract_title("# Special Characters: @#&$"), "Special Characters: @#&$")
+
+                # Test for multiple spaces between # and title
+                self.assertEqual(extract_title("#     Multi-space Title"), "Multi-space Title")
+
+        if __name__ == "__main__":
+            unittest.main()
