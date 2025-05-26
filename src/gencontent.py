@@ -23,14 +23,15 @@ def generate_page(input_path, template_path, output_path, basepath="/"):
 
     # Normalize basepath
     # Normalize basepath
+    # Normalize basepath
     if not basepath.endswith("/"):
         basepath += "/"
 
     # Fix URLs for GitHub Pages
     html = html.replace('href="HTMLStaticSite', f'href="{basepath}')
     html = html.replace('src="HTMLStaticSite', f'src="{basepath}')
-    html = html.replace('href="/', f'href="{basepath}')
-    html = html.replace('src="/', f'src="{basepath}')
+    html = html.replace('href="/', f'href="{basepath.rstrip("/")}/')
+    html = html.replace('src="/', f'src="{basepath.rstrip("/")}/')
 
 
 
